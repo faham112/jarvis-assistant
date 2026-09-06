@@ -4,3 +4,4 @@ pyaudio>=0.2.14
 wikipedia>=1.4.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+psutil>=5.9.0

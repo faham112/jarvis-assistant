@@ -32,6 +32,23 @@ def _run(cmd, shell=False):
     subprocess.Popen(cmd, shell=shell)
 
 
+def close_app(name):
+    name = (name or "").lower().strip()
+    try:
+        if IS_WINDOWS:
+            _run('taskkill /IM "%s.exe" /F' % name.replace(".exe", ""), shell=True)
+        else:
+            _run("pkill -f " + name, shell=True)
+        try:
+            from core import logger
+            logger.log("close_app", name)
+        except Exception:
+            pass
+        return "Closed " + name
+    except Exception as e:
+        return "Close fail: " + str(e)
+
+
 def open_app(name):
     name = name.lower().strip()
     win_map = {

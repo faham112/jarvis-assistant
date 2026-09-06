@@ -1,6 +1,10 @@
+import re
 import wikipedia
 
 from core import system
+from core import files
+from core import health
+from core import logger
 from core.llm import Brain
 
 
@@ -22,7 +26,7 @@ class Router:
             self.pending_danger = None
             return "Cancelled."
 
-        if any(w in q for w in ("exit", "quit", "goodbye", "sleep", "band karo", "go offline")):
+        if q in ("exit", "quit", "goodbye", "sleep", "band karo", "go offline", "goodbye mj"):
             return "__EXIT__"
 
         if "your name" in q or "tumhara naam" in q:
@@ -41,7 +45,42 @@ class Router:
         if "mute" in q or "unmute" in q:
             return system.volume("mute")
 
-        if "screenshot" in q or "screen shot" in q:
+        if any(k in q for k in (
+            "organize downloads",
+            "downloads folder saaf",
+            "downloads organize",
+            "saaf karo downloads",
+            "organize my downloads",
+        )):
+            return files.organize_downloads()
+
+        if any(k in q for k in ("system health", "pc slow", "system check", "mera pc slow")):
+            return health.system_health()
+
+        if "folder banao" in q or "create folder" in q or "folder bana" in q:
+            name = q
+            for cut in ("desktop pe", "desktop par", "on desktop", "create folder", "folder banao", "folder bana", "naam ka", "named"):
+                name = name.replace(cut, " ")
+            name = " ".join(name.split()) or "Projects"
+            place = "desktop" if "desktop" in q else "downloads"
+            return files.make_folder(place, name)
+
+        if q.startswith("close ") or q.startswith("band karo "):
+            app = q.split(" ", 1)[1].replace("karo", "").strip()
+            return system.close_app(app)
+
+        if "whatsapp" in q:
+            system.open_url("https://web.whatsapp.com")
+            logger.log("whatsapp", q)
+            return "WhatsApp Web khol diya. Contact khud select karo."
+
+        m = re.search(r"(?:open|kholo)\s+(chrome|google)\s+(?:and\s+)?(?:search(?:\s+for)?|pe search)\s+(.+)", q)
+        if m:
+            query = m.group(2).strip()
+            system.search_web(query)
+            return "Chrome/search: " + query
+
+        if "screenshot" in q or "screen shot" in q or "what's on my screen" in q or "kya screen" in q:
             return system.screenshot()
 
         if ("lock" in q and "screen" in q) or q in ("lock", "lock pc"):
@@ -73,13 +112,7 @@ class Router:
             return "Searching for " + query + "."
 
         if "wikipedia" in q or q.startswith("who is") or q.startswith("what is") or "kaun hai" in q:
-            topic = (
-                q.replace("wikipedia", "")
-                .replace("who is", "")
-                .replace("what is", "")
-                .replace("kaun hai", "")
-                .strip()
-            )
+            topic = q.replace("wikipedia", "").replace("who is", "").replace("what is", "").replace("kaun hai", "").strip()
             try:
                 wikipedia.set_lang("en")
                 return wikipedia.summary(topic or q, sentences=2)
