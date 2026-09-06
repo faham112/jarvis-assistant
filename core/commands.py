@@ -1,78 +1,103 @@
 import wikipedia
-from duckduckgo_search import DDGS
 
-from core.system import now_text, date_text, open_url, open_app, search_web, youtube
-
-
-def _wiki(query: str) -> str:
-    try:
-        wikipedia.set_lang("en")
-        return wikipedia.summary(query, sentences=2)
-    except Exception:
-        return f"I could not find a short Wikipedia answer for {query}."
+from core import system
+from core.llm import Brain
 
 
-def _web_answer(query: str) -> str:
-    try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=1))
-        if results:
-            item = results[0]
-            title = item.get("title", "")
-            body = item.get("body", "")
-            return f"{title}. {body}"
-    except Exception:
-        pass
-    search_web(query)
-    return "I opened a web search for that."
+class Router:
+    def __init__(self, brain):
+        self.brain = brain
+        self.pending_danger = None
 
+    def handle(self, command):
+        q = (command or "").lower().strip()
+        if not q:
+            return "I did not catch that."
 
-def handle(command: str) -> str:
-    q = command.lower().strip()
+        if self.pending_danger:
+            if q in ("yes", "haan", "han", "confirm", "do it", "ok"):
+                action = self.pending_danger
+                self.pending_danger = None
+                return system.power_action(action)
+            self.pending_danger = None
+            return "Cancelled."
 
-    if any(w in q for w in ("exit", "quit", "goodbye", "sleep", "band karo", "band ho")):
-        return "__EXIT__"
+        if any(w in q for w in ("exit", "quit", "goodbye", "sleep", "band karo", "go offline")):
+            return "__EXIT__"
 
-    if "your name" in q or "tumhara naam" in q:
-        return "I am Jarvis, your personal assistant."
+        if "your name" in q or "tumhara naam" in q:
+            return "MJ. Just a rather useful machine."
 
-    if "time" in q or "kitna baja" in q:
-        return f"The time is {now_text()}."
+        if "time" in q or "kitna baja" in q or "what time" in q:
+            return "The time is " + system.now_text() + "."
 
-    if "date" in q or "tareekh" in q or "aaj ka din" in q:
-        return f"Today is {date_text()}."
+        if "date" in q or "tareekh" in q or "aaj ka din" in q:
+            return "Today is " + system.date_text() + "."
 
-    if q.startswith("open ") or q.startswith("kholo "):
-        target = q.split(" ", 1)[1]
-        if target.startswith("http") or "." in target:
-            open_url(target if target.startswith("http") else f"https://{target}")
-            return f"Opening {target}."
-        return open_app(target)
+        if "volume up" in q or "awaz barhao" in q or "sound up" in q:
+            return system.volume("up")
+        if "volume down" in q or "awaz kam" in q or "sound down" in q:
+            return system.volume("down")
+        if "mute" in q or "unmute" in q:
+            return system.volume("mute")
 
-    if "youtube" in q:
-        query = q.replace("play", "").replace("on youtube", "").replace("youtube", "").strip()
-        youtube(query or "music")
-        return "Opening YouTube."
+        if "screenshot" in q or "screen shot" in q:
+            return system.screenshot()
 
-    if q.startswith("search ") or q.startswith("google ") or "search karo" in q:
-        query = q.replace("search", "").replace("google", "").replace("karo", "").strip()
-        search_web(query)
-        return f"Searching for {query}."
+        if ("lock" in q and "screen" in q) or q in ("lock", "lock pc"):
+            return system.lock_screen()
 
-    if "wikipedia" in q or "who is" in q or "what is" in q or "kaun hai" in q:
-        topic = (
-            q.replace("wikipedia", "")
-            .replace("who is", "")
-            .replace("what is", "")
-            .replace("kaun hai", "")
-            .strip()
-        )
-        return _wiki(topic or q)
+        if q.startswith("note ") or q.startswith("yaad rakh ") or q.startswith("remember "):
+            text = q.split(" ", 1)[1]
+            return system.save_note(text)
 
-    if "joke" in q or "joke sunao" in q:
-        return "Why do programmers prefer dark mode? Because light attracts bugs."
+        if "read notes" in q or "notes padho" in q or "my notes" in q:
+            return system.read_notes()
 
-    if "hello" in q or "hi jarvis" in q or "salam" in q or "assalam" in q:
-        return "Hello. I am online and ready."
+        if q.startswith("open ") or q.startswith("kholo "):
+            target = q.split(" ", 1)[1]
+            if target.startswith("http") or ("." in target and " " not in target):
+                url = target if target.startswith("http") else "https://" + target
+                system.open_url(url)
+                return "Opening " + target + "."
+            return system.open_app(target)
 
-    return _web_answer(q)
+        if "youtube" in q:
+            query = q.replace("play", "").replace("on youtube", "").replace("youtube", "").strip()
+            system.youtube(query or "music")
+            return "Opening YouTube."
+
+        if q.startswith("search ") or q.startswith("google ") or "search karo" in q:
+            query = q.replace("search karo", "").replace("search", "").replace("google", "").strip()
+            system.search_web(query)
+            return "Searching for " + query + "."
+
+        if "wikipedia" in q or q.startswith("who is") or q.startswith("what is") or "kaun hai" in q:
+            topic = (
+                q.replace("wikipedia", "")
+                .replace("who is", "")
+                .replace("what is", "")
+                .replace("kaun hai", "")
+                .strip()
+            )
+            try:
+                wikipedia.set_lang("en")
+                return wikipedia.summary(topic or q, sentences=2)
+            except Exception:
+                system.search_web(topic or q)
+                return "Wikipedia short answer nahi mila, search khol diya."
+
+        if "shutdown" in q or "band kar do computer" in q:
+            self.pending_danger = "shutdown"
+            return "Confirm shutdown? Say yes."
+        if "restart" in q or "reboot" in q:
+            self.pending_danger = "restart"
+            return "Confirm restart? Say yes."
+
+        if "joke" in q:
+            return "I would tell a UDP joke, but I am not sure you would get it."
+
+        if any(w in q for w in ("hello", "salam", "assalam", "hi mj")):
+            return "Online. What do you need?"
+
+        return self.brain.ask(command)

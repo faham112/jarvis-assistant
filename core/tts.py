@@ -1,4 +1,5 @@
 import pyttsx3
+
 from config import TTS_RATE, TTS_VOLUME, PREFERRED_VOICE_KEYWORDS
 
 
@@ -11,19 +12,16 @@ class Speaker:
 
     def _pick_voice(self):
         voices = self.engine.getProperty("voices") or []
-        chosen = None
         for voice in voices:
-            name = (voice.name or "").lower()
-            vid = (voice.id or "").lower()
+            name = (getattr(voice, "name", "") or "").lower()
+            vid = (getattr(voice, "id", "") or "").lower()
             if any(k in name or k in vid for k in PREFERRED_VOICE_KEYWORDS):
-                chosen = voice.id
+                self.engine.setProperty("voice", voice.id)
                 break
-        if chosen:
-            self.engine.setProperty("voice", chosen)
 
-    def say(self, text: str):
+    def say(self, text):
         if not text:
             return
-        print(f"Jarvis: {text}")
+        print("MJ:", text)
         self.engine.say(text)
         self.engine.runAndWait()

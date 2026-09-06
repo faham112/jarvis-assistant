@@ -1,1 +1,1 @@
-# Jarvis core package
+# MJ / Jarvis core
