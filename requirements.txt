@@ -1,0 +1,8 @@
+speechrecognition>=3.10.0
+pyttsx3>=2.90
+pyaudio>=0.2.14
+wikipedia>=1.4.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+pywhatkit>=5.4
+duckduckgo-search>=6.0.0
