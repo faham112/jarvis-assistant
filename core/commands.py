@@ -69,16 +69,25 @@ class Router:
             app = q.split(" ", 1)[1].replace("karo", "").strip()
             return system.close_app(app)
 
-        if "whatsapp" in q:
-            system.open_url("https://web.whatsapp.com")
-            logger.log("whatsapp", q)
-            return "WhatsApp Web khol diya. Contact khud select karo."
+        if "whatsapp" in q or "msg karo" in q or "faham" in q or "faheem" in q:
+            from core import contacts
+            name, msg = contacts.parse_whatsapp_command(q)
+            number = contacts.lookup(name or q)
+            if not number:
+                logger.log("whatsapp", "no contact")
+                return (
+                    "Number .env mein set karo: CONTACT_FAHAM=923XXXXXXXXX "
+                    "phir kaho: whatsapp pe faham ko bolo hi"
+                )
+            url = contacts.wa_link(number, msg)
+            system.open_url(url)
+            logger.log("whatsapp", (name or "") + " " + msg)
+            return "WhatsApp chat kholi. Text ready. Send button khud dabao."
 
         m = re.search(r"(?:open|kholo)\s+(chrome|google)\s+(?:and\s+)?(?:search(?:\s+for)?|pe search)\s+(.+)", q)
         if m:
-            query = m.group(2).strip()
-            system.search_web(query)
-            return "Chrome/search: " + query
+            system.search_web(m.group(2).strip())
+            return "Chrome/search: " + m.group(2).strip()
 
         if "screenshot" in q or "screen shot" in q or "what's on my screen" in q or "kya screen" in q:
             return system.screenshot()
@@ -87,8 +96,7 @@ class Router:
             return system.lock_screen()
 
         if q.startswith("note ") or q.startswith("yaad rakh ") or q.startswith("remember "):
-            text = q.split(" ", 1)[1]
-            return system.save_note(text)
+            return system.save_note(q.split(" ", 1)[1])
 
         if "read notes" in q or "notes padho" in q or "my notes" in q:
             return system.read_notes()
@@ -96,8 +104,7 @@ class Router:
         if q.startswith("open ") or q.startswith("kholo "):
             target = q.split(" ", 1)[1]
             if target.startswith("http") or ("." in target and " " not in target):
-                url = target if target.startswith("http") else "https://" + target
-                system.open_url(url)
+                system.open_url(target if target.startswith("http") else "https://" + target)
                 return "Opening " + target + "."
             return system.open_app(target)
 
