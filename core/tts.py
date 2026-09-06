@@ -5,7 +5,12 @@ from config import TTS_RATE, TTS_VOLUME, PREFERRED_VOICE_KEYWORDS
 
 class Speaker:
     def __init__(self):
-        self.engine = pyttsx3.init()
+        try:
+            self.engine = pyttsx3.init()
+        except Exception as exc:
+            self.engine = None
+            print(f"TTS unavailable; continuing in text mode: {exc}")
+            return
         self.engine.setProperty("rate", TTS_RATE)
         self.engine.setProperty("volume", TTS_VOLUME)
         self._pick_voice()
@@ -23,5 +28,7 @@ class Speaker:
         if not text:
             return
         print("MJ:", text)
+        if self.engine is None:
+            return
         self.engine.say(text)
         self.engine.runAndWait()
