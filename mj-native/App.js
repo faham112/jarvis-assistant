@@ -1,18 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  SafeAreaView,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  StatusBar,
+  SafeAreaView, View, Text, TextInput, TouchableOpacity, FlatList,
+  StyleSheet, KeyboardAvoidingView, Platform, StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ping, sendChat } from "./src/api";
+import { DEFAULT_URL, DEFAULT_KEY } from "./src/config";
 
 const QUICK = [
   { label: "Time", text: "time" },
@@ -23,27 +16,48 @@ const QUICK = [
 
 export default function App() {
   const [tab, setTab] = useState("chat");
-  const [baseUrl, setBaseUrl] = useState("http://127.0.0.1:8080");
-  const [apiKey, setApiKey] = useState("change-me");
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_URL);
+  const [apiKey, setApiKey] = useState(DEFAULT_KEY);
   const [status, setStatus] = useState("offline");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState([
-    { id: "0", role: "mj", text: "MJ online. Settings mein API URL daalo." },
+    { id: "0", role: "mj", text: "Connecting to MJ API..." },
   ]);
   const list = useRef(null);
 
   useEffect(() => {
+    let alive = true;
     (async () => {
-      const u = await AsyncStorage.getItem("mj_url");
-      const k = await AsyncStorage.getItem("mj_key");
-      if (u) setBaseUrl(u);
-      if (k) setApiKey(k);
+      const u = (await AsyncStorage.getItem("mj_url")) || DEFAULT_URL;
+      const k = (await AsyncStorage.getItem("mj_key")) || DEFAULT_KEY;
+      if (!alive) return;
+      setBaseUrl(u);
+      setApiKey(k);
+      try {
+        const h = await ping({ baseUrl: u, apiKey: k });
+        if (!alive) return;
+        setStatus(h.ok ? "online" : "error");
+        setMessages((m) => m.concat([{
+          id: "boot",
+          role: "mj",
+          text: h.ok ? "API connected. Ollama: " + (h.ollama ? "yes" : "no") : "Health fail",
+        }]));
+      } catch (e) {
+        if (!alive) return;
+        setStatus("error");
+        setMessages((m) => m.concat([{
+          id: "boot-err",
+          role: "mj",
+          text: "API connect nahi: " + e.message + ". uvicorn chalao. Phone ho to .env mein VPS IP.",
+        }]));
+      }
     })();
+    return () => { alive = false; };
   }, []);
 
   const push = (role, text) => {
-    setMessages((m) => [...m, { id: String(Date.now()) + role, role, text }]);
+    setMessages((m) => m.concat([{ id: String(Date.now()) + role, role, text }]));
   };
 
   const saveSettings = async () => {
@@ -52,7 +66,7 @@ export default function App() {
     try {
       const h = await ping({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
       setStatus(h.ok ? "online" : "error");
-      push("mj", h.ok ? "Connected. Ollama: " + (h.ollama ? "yes" : "no") : "Health fail");
+      push("mj", h.ok ? "Connected" : "Health fail");
     } catch (e) {
       setStatus("error");
       push("mj", "Connect fail: " + e.message);
@@ -66,11 +80,7 @@ export default function App() {
     push("you", t);
     setBusy(true);
     try {
-      const reply = await sendChat({
-        baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim(),
-        text: t,
-      });
+      const reply = await sendChat({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), text: t });
       push("mj", reply);
       setStatus("online");
     } catch (e) {
@@ -129,14 +139,7 @@ export default function App() {
             ))}
           </View>
           <View style={st.row}>
-            <TextInput
-              style={st.compose}
-              placeholder="Hey MJ..."
-              placeholderTextColor="#6b7c99"
-              value={draft}
-              onChangeText={setDraft}
-              onSubmitEditing={() => send()}
-            />
+            <TextInput style={st.compose} placeholder="Hey MJ..." placeholderTextColor="#6b7c99" value={draft} onChangeText={setDraft} onSubmitEditing={() => send()} />
             <TouchableOpacity style={st.send} onPress={() => send()} disabled={busy}>
               <Text style={st.btnTxt}>{busy ? "..." : "Send"}</Text>
             </TouchableOpacity>
