@@ -6,3 +6,5 @@ venv/
 *.log
 .DS_Store
 data/*.png
+mj-native/node_modules/
+mj-native/.expo/

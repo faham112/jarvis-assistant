@@ -5,3 +5,6 @@ wikipedia>=1.4.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 psutil>=5.9.0
+fastapi>=0.115.0
+uvicorn>=0.32.0
+pydantic>=2.0.0
