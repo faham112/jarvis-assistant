@@ -5,7 +5,17 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "ios": { "supportsTablet": true },
-    "android": { "package": "com.faham.mjnative" }
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.faham.mjnative"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f016c139-1806-4faf-aa7f-005e3bd2dc3e"
+      }
+    },
+    "owner": "faham112"
   }
 }
