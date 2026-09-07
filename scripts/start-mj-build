@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -e
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+APP="$ROOT/mj-native"
+
+echo "== MJ Termux build =="
+echo "repo: $ROOT"
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git missing. Termux: pkg install git"
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  echo "node/npm missing. Termux: pkg install nodejs"
+  exit 1
+fi
+
+cd "$ROOT"
+git pull --ff-only || true
+
+if [ ! -d "$APP" ]; then
+  echo "mj-native folder nahi mila: $APP"
+  exit 1
+fi
+
+cd "$APP"
+echo "now in $(pwd)"
+
+if [ ! -f .env ]; then
+  printf '%s\n' 'EXPO_PUBLIC_MJ_API_URL=http://127.0.0.1:8080' 'EXPO_PUBLIC_MJ_API_KEY=change-me' > .env
+  echo "created mj-native/.env — VPS IP yahan likho"
+fi
+
+npm install
+npx expo start --tunnel
