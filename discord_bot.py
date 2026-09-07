@@ -49,25 +49,45 @@ def transcribe(path):
     except Exception:
         return ""
 
+async def ensure_voice(ctx):
+    author = getattr(ctx, "author", None)
+    if not author or not getattr(author, "voice", None):
+        return
+    ch = author.voice.channel
+    vc = ctx.voice_client
+    try:
+        if vc and vc.is_connected():
+            if vc.channel != ch:
+                await vc.move_to(ch)
+        else:
+            await ch.connect()
+    except Exception:
+        pass
+
 async def speak(ctx, text):
+    path = await asyncio.to_thread(tts_mp3, text)
+    await ensure_voice(ctx)
+    played = False
     if ctx.voice_client and ctx.voice_client.is_connected():
-        path = await asyncio.to_thread(tts_mp3, text)
-        src = discord.FFmpegPCMAudio(path)
-        if ctx.voice_client.is_playing():
-            ctx.voice_client.stop()
-        done = asyncio.Event()
-        def after(_e):
-            done.set()
-            try:
-                Path(path).unlink(missing_ok=True)
-            except Exception:
-                pass
-        ctx.voice_client.play(src, after=lambda e: after(e))
         try:
+            src = discord.FFmpegPCMAudio(path)
+            if ctx.voice_client.is_playing():
+                ctx.voice_client.stop()
+            done = asyncio.Event()
+            ctx.voice_client.play(src, after=lambda e: done.set())
             await asyncio.wait_for(done.wait(), timeout=60)
-        except asyncio.TimeoutError:
-            pass
-    await ctx.send("**MJ:** " + text[:1900])
+            played = True
+        except Exception:
+            played = False
+    extra = "" if played else " Play mj-reply.mp3"
+    try:
+        await ctx.send("**MJ:** " + text[:1500] + extra, file=discord.File(path, filename="mj-reply.mp3"))
+    except Exception:
+        await ctx.send("**MJ:** " + text[:1900])
+    try:
+        Path(path).unlink(missing_ok=True)
+    except Exception:
+        pass
 
 async def handle_line(ctx, line):
     reply = await asyncio.to_thread(router.handle, line)
@@ -84,14 +104,14 @@ async def cmd_join(ctx):
     if not allowed(ctx.author):
         return
     if not ctx.author.voice:
-        await ctx.send("Pehle voice channel mein jao, phir !join")
+        await ctx.send("Voice channel mein jao phir !join")
         return
     ch = ctx.author.voice.channel
     if ctx.voice_client:
         await ctx.voice_client.move_to(ch)
     else:
         await ch.connect()
-    await ctx.send("MJ voice pe. Type ya voice note bhejo.")
+    await ctx.send("MJ voice pe. Voice note bhejo ya !mj time")
 
 @bot.command(name="leave")
 async def cmd_leave(ctx):
@@ -119,12 +139,12 @@ async def on_message(msg):
         name = (att.filename or "").lower()
         ctype = (att.content_type or "")
         if "audio" in ctype or name.endswith((".ogg", ".mp3", ".wav", ".m4a", ".webm")):
-            path = str(Path(tempfile.gettempdir()) / att.filename)
+            path = str(Path(tempfile.gettempdir()) / (att.filename or "voice.ogg"))
             await att.save(path)
             text = await asyncio.to_thread(transcribe, path)
             ctx = await bot.get_context(msg)
             if not text:
-                await msg.channel.send("Awaz samajh nahi aayi.")
+                await msg.channel.send("Awaz samajh nahi aayi. Voice note dobara.")
                 return
             await msg.channel.send("*suna:* " + text)
             await handle_line(ctx, text)
@@ -140,7 +160,7 @@ async def on_message(msg):
 
 def main():
     if not TOKEN:
-        print("Set DISCORD_TOKEN in .env")
+        print("Set DISCORD_TOKEN")
         return
     bot.run(TOKEN)
 
