@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState } from "react";
 import {
   SafeAreaView, View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, StatusBar,
@@ -6,6 +6,30 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ping, sendChat } from "./src/api";
 import { DEFAULT_URL, DEFAULT_KEY } from "./src/config";
+
+class AppErrorBoundary extends Component {
+  state = { error: null };
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <SafeAreaView style={st.root}>
+        <View style={st.crashBox}>
+          <Text style={st.logo}>MJ</Text>
+          <Text style={st.crashTitle}>MJ could not start</Text>
+          <Text style={st.crashText}>{String(this.state.error?.message || this.state.error)}</Text>
+          <TouchableOpacity style={st.btn} onPress={() => this.setState({ error: null })}>
+            <Text style={st.btnTxt}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+}
 
 const QUICK = [
   { label: "Time", text: "time" },
@@ -15,6 +39,10 @@ const QUICK = [
 ];
 
 export default function App() {
+  return <AppErrorBoundary><MJApp /></AppErrorBoundary>;
+}
+
+function MJApp() {
   const [tab, setTab] = useState("chat");
   const [baseUrl, setBaseUrl] = useState(DEFAULT_URL);
   const [apiKey, setApiKey] = useState(DEFAULT_KEY);
@@ -177,6 +205,9 @@ const st = StyleSheet.create({
   chip: { backgroundColor: "#141c2e", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginRight: 8, marginBottom: 8 },
   chipTxt: { color: "#7ee0ff" },
   row: { flexDirection: "row", padding: 12, alignItems: "center" },
+  crashBox: { margin: 24, padding: 22, backgroundColor: "#141c2e", borderRadius: 16 },
+  crashTitle: { color: "#f2f6ff", fontSize: 22, fontWeight: "800", marginTop: 14 },
+  crashText: { color: "#ffb8bf", fontSize: 14, lineHeight: 20, marginTop: 10, marginBottom: 18 },
   compose: { flex: 1, backgroundColor: "#101624", color: "#fff", borderRadius: 12, paddingHorizontal: 14, height: 48, marginRight: 8 },
   send: { backgroundColor: "#1a6dff", height: 48, paddingHorizontal: 16, borderRadius: 12, justifyContent: "center" },
 });

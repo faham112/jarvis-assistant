@@ -9,3 +9,5 @@ data/*.png
 mj-native/node_modules/
 mj-native/.expo/
 mj-native/*.apk
+
+mj-native/dist/
