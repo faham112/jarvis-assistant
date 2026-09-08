@@ -4,9 +4,8 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-from gtts import gTTS
 import speech_recognition as sr
-
+from core.voice_urdu import tts_mp3
 load_dotenv()
 from core.llm import Brain
 from core.commands import Router
@@ -14,7 +13,6 @@ from core.commands import Router
 TOKEN = os.getenv("DISCORD_TOKEN", "")
 OWNER_ID = os.getenv("DISCORD_OWNER_ID", "").strip()
 PREFIX = os.getenv("DISCORD_PREFIX", "!")
-
 intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
@@ -28,13 +26,6 @@ def allowed(user):
         return True
     return str(user.id) == OWNER_ID
 
-def tts_mp3(text):
-    clean = (text or "Okay.")[:400]
-    fd, path = tempfile.mkstemp(suffix=".mp3")
-    os.close(fd)
-    gTTS(text=clean, lang="en").save(path)
-    return path
-
 def transcribe(path):
     r = sr.Recognizer()
     wav = path
@@ -45,9 +36,12 @@ def transcribe(path):
     with sr.AudioFile(wav) as src:
         audio = r.record(src)
     try:
-        return r.recognize_google(audio)
+        return r.recognize_google(audio, language="ur-PK")
     except Exception:
-        return ""
+        try:
+            return r.recognize_google(audio, language="en-US")
+        except Exception:
+            return ""
 
 async def ensure_voice(ctx):
     author = getattr(ctx, "author", None)
@@ -89,11 +83,14 @@ async def speak(ctx, text):
     except Exception:
         pass
 
-async def handle_line(ctx, line):
+async def handle_line(ctx, line, voice=False):
     reply = await asyncio.to_thread(router.handle, line)
     if reply == "__EXIT__":
-        reply = "Discord pe main yahin rehta hoon."
-    await speak(ctx, reply)
+        reply = "Discord pe main yahin rehti hoon."
+    if voice:
+        await speak(ctx, reply)
+    else:
+        await ctx.send("**MJ:** " + reply[:1900])
 
 @bot.event
 async def on_ready():
@@ -104,27 +101,27 @@ async def cmd_join(ctx):
     if not allowed(ctx.author):
         return
     if not ctx.author.voice:
-        await ctx.send("Voice channel mein jao phir !join")
+        await ctx.send("Pehle voice channel mein jao, phir !join")
         return
     ch = ctx.author.voice.channel
     if ctx.voice_client:
         await ctx.voice_client.move_to(ch)
     else:
         await ch.connect()
-    await ctx.send("MJ voice pe. Voice note bhejo ya !mj time")
+    await ctx.send("Voice note = awaz. Type = text.")
 
 @bot.command(name="leave")
 async def cmd_leave(ctx):
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
-    await ctx.send("Nikal gaya.")
+    await ctx.send("Nikal gayi.")
 
 @bot.command(name="mj")
 async def cmd_mj(ctx, *, text: str = ""):
     if not allowed(ctx.author):
         return
     if text.strip():
-        await handle_line(ctx, text.strip())
+        await handle_line(ctx, text.strip(), voice=False)
 
 @bot.event
 async def on_message(msg):
@@ -144,10 +141,10 @@ async def on_message(msg):
             text = await asyncio.to_thread(transcribe, path)
             ctx = await bot.get_context(msg)
             if not text:
-                await msg.channel.send("Awaz samajh nahi aayi. Voice note dobara.")
+                await msg.channel.send("Awaz samajh nahi aayi.")
                 return
             await msg.channel.send("*suna:* " + text)
-            await handle_line(ctx, text)
+            await handle_line(ctx, text, voice=True)
             return
     if isinstance(msg.channel, discord.DMChannel) or (bot.user and bot.user in msg.mentions):
         line = msg.content
@@ -156,7 +153,7 @@ async def on_message(msg):
         line = line.strip()
         if line:
             ctx = await bot.get_context(msg)
-            await handle_line(ctx, line)
+            await handle_line(ctx, line, voice=False)
 
 def main():
     if not TOKEN:
