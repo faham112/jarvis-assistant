@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ from config import ASSISTANT_NAME, OWNER_NAME, OLLAMA_MODEL
 from core.llm import Brain
 from core.commands import Router
 from core import health, logger
+from core import task_manager as tm
 
 API_KEY = os.getenv("MJ_API_KEY", "change-me")
 BLOCK = ("shutdown", "restart", "reboot", "lock screen")
@@ -68,3 +69,155 @@ def chat(body: ChatIn, x_api_key: Optional[str] = Header(default=None), authoriz
         reply = "API session band nahi hoti."
     logger.log("api_chat", text[:80])
     return ChatOut(reply=reply)
+
+
+# ---------------------------------------------------------------------------
+# Teams & Tasks — advanced multi-user task management
+# ---------------------------------------------------------------------------
+
+class TeamIn(BaseModel):
+    name: str
+    description: str = ""
+
+class MemberIn(BaseModel):
+    name: str
+    role: str = "member"
+
+class TaskIn(BaseModel):
+    title: str
+    assignee: Optional[str] = None
+    priority: str = "medium"
+    due_date: Optional[str] = None
+    project: Optional[str] = None
+    team: Optional[str] = None
+    notes: str = ""
+
+class TaskUpdateIn(BaseModel):
+    title: Optional[str] = None
+    assignee: Optional[str] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    due_date: Optional[str] = None
+    project: Optional[str] = None
+    notes: Optional[str] = None
+
+
+def _check(x_api_key, authorization, key):
+    _auth(x_api_key, authorization, key)
+
+
+# --- Teams ---
+
+@app.get("/teams")
+def teams_list(x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    return {"teams": tm.list_teams()}
+
+@app.post("/teams")
+def teams_create(body: TeamIn, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    team = tm.create_team(body.name, body.description)
+    logger.log("api_team_create", body.name)
+    return team
+
+@app.get("/teams/{team_name}")
+def teams_get(team_name: str, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    team = tm.get_team(team_name)
+    if not team:
+        raise HTTPException(404, "Team not found")
+    return team
+
+@app.delete("/teams/{team_name}")
+def teams_delete(team_name: str, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    if not tm.delete_team(team_name):
+        raise HTTPException(404, "Team not found")
+    return {"ok": True}
+
+@app.post("/teams/{team_name}/members")
+def teams_add_member(team_name: str, body: MemberIn, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    team = tm.add_member(team_name, body.name, body.role)
+    logger.log("api_team_add_member", "%s -> %s" % (body.name, team_name))
+    return team
+
+@app.delete("/teams/{team_name}/members/{member_name}")
+def teams_remove_member(team_name: str, member_name: str, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    team = tm.remove_member(team_name, member_name)
+    if not team:
+        raise HTTPException(404, "Team not found")
+    return team
+
+@app.get("/teams/{team_name}/workload")
+def teams_workload(team_name: str, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    return {"team": team_name, "workload": tm.workload_summary(team=team_name)}
+
+
+# --- Tasks ---
+
+@app.get("/tasks")
+def tasks_list(assignee: Optional[str] = None, status: Optional[str] = None,
+                team: Optional[str] = None, project: Optional[str] = None,
+                priority: Optional[str] = None,
+                x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    return {"tasks": tm.list_tasks(assignee=assignee, status=status, team=team, project=project, priority=priority)}
+
+@app.post("/tasks")
+def tasks_create(body: TaskIn, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    task = tm.create_task(title=body.title, assignee=body.assignee, priority=body.priority,
+                           due_date=body.due_date, project=body.project, team=body.team, notes=body.notes)
+    logger.log("api_task_create", body.title)
+    return task
+
+@app.get("/tasks/overdue")
+def tasks_overdue(team: Optional[str] = None, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    return {"tasks": tm.overdue_tasks(team=team)}
+
+@app.get("/tasks/{task_id}")
+def tasks_get(task_id: str, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    task = tm.get_task(task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    return task
+
+@app.patch("/tasks/{task_id}")
+def tasks_update(task_id: str, body: TaskUpdateIn, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    fields = {k: v for k, v in body.dict().items() if v is not None}
+    if "status" in fields and fields["status"] not in tm.STATUSES:
+        raise HTTPException(400, "Invalid status")
+    task = tm.update_task(task_id, **fields)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    logger.log("api_task_update", task_id)
+    return task
+
+@app.delete("/tasks/{task_id}")
+def tasks_delete(task_id: str, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    if not tm.delete_task(task_id):
+        raise HTTPException(404, "Task not found")
+    return {"ok": True}
+
+@app.post("/tasks/{task_id}/subtasks")
+def tasks_add_subtask(task_id: str, body: dict, x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    title = (body or {}).get("title", "").strip()
+    if not title:
+        raise HTTPException(400, "title required")
+    task = tm.add_subtask(task_id, title)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    return task
+
+@app.get("/workload")
+def workload_all(x_api_key: Optional[str] = Header(default=None), authorization: Optional[str] = Header(default=None), key: Optional[str] = Query(default=None)):
+    _check(x_api_key, authorization, key)
+    return {"workload": tm.workload_summary()}

@@ -10,6 +10,22 @@ Web: search QUERY | youtube QUERY | weather CITY
 WhatsApp: whatsapp summary (export txt)
 Discord: !join !leave !mj COMMAND
 Danger: shutdown | restart (confirm)
+
+Teams & Task Management (multi-user, persisted in data/tasks.json + data/teams.json):
+  create team NAME
+  add MEMBER to team NAME [as ROLE]
+  remove MEMBER from team NAME
+  list teams
+  team NAME workload | workload
+
+  add task TITLE [for ASSIGNEE] [priority low|medium|high|urgent] [due YYYY-MM-DD] [project NAME] [team NAME]
+  my tasks | all tasks | tasks for ASSIGNEE | team NAME tasks
+  overdue tasks | urgent tasks
+  start task TITLE | complete task TITLE | block task TITLE | delete task TITLE
+  reassign task TITLE to ASSIGNEE
+
+REST API (see api_server.py): /teams, /teams/{name}/members, /teams/{name}/workload,
+  /tasks (GET/POST), /tasks/{id} (GET/PATCH/DELETE), /tasks/overdue, /tasks/{id}/subtasks, /workload
 """
 
 def weather(city=""):
