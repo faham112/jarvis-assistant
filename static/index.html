@@ -1,0 +1,21 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>MJ</title>
+<style>body{font-family:system-ui;background:#0e1116;color:#eee;margin:0}#box{max-width:640px;margin:24px auto;padding:16px}#log{min-height:240px;border:1px solid #333;padding:12px;border-radius:8px;white-space:pre-wrap;background:#161b22}#bar{display:flex;gap:8px;margin-top:12px}input,button{font:inherit}#bar input{flex:1;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#eee}button{padding:8px 14px;border:0;border-radius:6px;background:#3b82f6;color:#fff}#key{width:100%;margin:8px 0;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#eee}.ok{color:#86efac}.bad{color:#fca5a5}</style></head>
+<body><div id="box"><h1>MJ web</h1>
+<input id="key" type="password" placeholder="API key"/>
+<div id="st" class="bad">key + Activate</div><div id="log"></div>
+<div id="bar"><input id="msg" placeholder="Roman Urdu"/><button id="go">Bhejo</button></div></div>
+<script>
+const log=document.getElementById('log');const st=document.getElementById('st');
+function line(t){log.textContent+=t+'\n';log.scrollTop=log.scrollHeight;}
+async function activate(){const k=document.getElementById('key').value.trim();localStorage.setItem('mjkey',k);
+const r=await fetch('/activate',{headers:{'X-API-Key':k}});const j=await r.json().catch(()=>({}));
+if(r.ok&&j.activated){st.className='ok';st.textContent='Activated ollama='+j.ollama;}else{st.className='bad';st.textContent='Fail';}}
+async function send(){const k=document.getElementById('key').value.trim();const t=document.getElementById('msg').value.trim();if(!t)return;
+document.getElementById('msg').value='';line('Tum: '+t);
+const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':k},body:JSON.stringify({text:t})});
+const j=await r.json().catch(()=>({}));line('MJ: '+(j.reply||j.detail||r.status));}
+document.getElementById('key').value=localStorage.getItem('mjkey')||'';
+document.getElementById('key').onchange=activate;document.getElementById('go').onclick=send;
+document.getElementById('msg').onkeydown=e=>{if(e.key==='Enter')send();};
+if(document.getElementById('key').value)activate();
+</script></body></html>
