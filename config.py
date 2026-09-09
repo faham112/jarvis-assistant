@@ -34,6 +34,19 @@ TTS_RATE = int(os.getenv("TTS_RATE", "175"))
 TTS_VOLUME = float(os.getenv("TTS_VOLUME", "1.0"))
 PREFERRED_VOICE_KEYWORDS = ("david", "mark", "male", "english", "en_")
 
+# --- Discord voice quality / Urdu mode ---
+# Fixes "voice level not fine": loudness-normalize every generated clip to a
+# consistent target, then apply an explicit playback gain in Discord itself
+# (source loudness and playback gain are two separate problems; both matter).
+MJ_TTS_TARGET_LUFS = float(os.getenv("MJ_TTS_TARGET_LUFS", "-16.0"))
+MJ_DISCORD_VOLUME = float(os.getenv("MJ_DISCORD_VOLUME", "2.0"))  # 1.0 = unity gain
+
+# Pure Urdu mode: when on, MJ speaks real Urdu script (via LLM translation,
+# not the old word-by-word roman->Urdu map) and recognizes speech as Urdu only.
+MJ_URDU_MODE_DEFAULT = os.getenv("MJ_URDU_MODE", "0") == "1"
+MJ_URDU_VOICE_FEMALE = os.getenv("MJ_URDU_VOICE_FEMALE", "ur-PK-UzmaNeural")
+MJ_URDU_VOICE_MALE = os.getenv("MJ_URDU_VOICE_MALE", "ur-PK-AsadNeural")
+
 LISTEN_TIMEOUT = 7
 PHRASE_TIME_LIMIT = 12
 ENERGY_THRESHOLD = 300
